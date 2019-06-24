@@ -28,35 +28,34 @@ def checkTitle(x):
     return x
 
 
-def prepareDataSet():
-    trainingDataset = pd.read_csv("dataset/train.csv")
+def prepareDataSet(dataSet):
     # 0 : female, 1 : male
-    trainingDataset.at[trainingDataset["Sex"] == "male", "Sex"] = 1
-    trainingDataset.at[trainingDataset["Sex"] == "female", "Sex"] = 0
+    dataSet.at[dataSet["Sex"] == "male", "Sex"] = 1
+    dataSet.at[dataSet["Sex"] == "female", "Sex"] = 0
     # 1 : S, 2 : C, 3 : Q
-    trainingDataset.at[trainingDataset["Embarked"] == 'S', 'Embarked'] = 1
-    trainingDataset.at[trainingDataset["Embarked"] == 'C', 'Embarked'] = 2
-    trainingDataset.at[trainingDataset["Embarked"] == 'Q', 'Embarked'] = 3
+    dataSet.at[dataSet["Embarked"] == 'S', 'Embarked'] = 1
+    dataSet.at[dataSet["Embarked"] == 'C', 'Embarked'] = 2
+    dataSet.at[dataSet["Embarked"] == 'Q', 'Embarked'] = 3
     # 1 : mr, 2:mrs, 3:miss
-    trainingDataset["Name"] = trainingDataset.apply(checkTitle, axis=1)
-    trainingDataset.drop(columns=["Cabin", "Ticket","PassengerId"], inplace=True)
+    dataSet["Name"] = dataSet.apply(checkTitle, axis=1)
+    dataSet.drop(columns=["Cabin", "Ticket", "PassengerId"], inplace=True)
 
-    trainingDataset = trainingDataset.drop(trainingDataset[trainingDataset.Fare == 0].index)
+    dataSet = dataSet.drop(dataSet[dataSet.Fare == 0].index)
 
-    trainingDataset.dropna(axis=0, inplace=True)
+    dataSet.dropna(axis=0, inplace=True)
 
-    trainingDataset["covAgeANDPclass"] = trainingDataset["Age"] * trainingDataset["Pclass"]
-    trainingDataset["familySize"] = trainingDataset["SibSp"] + trainingDataset["Parch"]
+    dataSet["covAgeANDPclass"] = dataSet["Age"] * dataSet["Pclass"]
+    dataSet["familySize"] = dataSet["SibSp"] + dataSet["Parch"]
 
-    trainingDataset.at[trainingDataset["familySize"] == 0, "familySize"] = 1
-    trainingDataset["pricePerPerson"] = trainingDataset["Fare"] / trainingDataset["familySize"]
+    dataSet.at[dataSet["familySize"] == 0, "familySize"] = 1
+    dataSet["pricePerPerson"] = dataSet["Fare"] / dataSet["familySize"]
 
-    print(trainingDataset.columns)
+    print(dataSet.columns)
 
-    return trainingDataset
+    return dataSet
 
 
-def startML(DataSet):
+def CreateModel(DataSet):
     # Get The Features Columns
     attributes = DataSet.columns.tolist()
     attributes.remove('Survived')
@@ -68,7 +67,7 @@ def startML(DataSet):
     trainingX = scalar.transform(trainingX)
 
     # Split Training and Testing Dataset for Machine Learning Part
-    trainingFeatures, devsetFeatures, trainingLabels, devsetLabels = train_test_split(trainingX, trainingY, test_size=0.08, random_state=42)
+    # trainingFeatures, devsetFeatures, trainingLabels, devsetLabels = train_test_split(trainingX, trainingY, test_size=0.08, random_state=42)
 
     model = tf.keras.Sequential([
         tf.keras.layers.Dense(units=24, input_shape=(len(attributes),), activation=tf.nn.sigmoid),
@@ -80,14 +79,35 @@ def startML(DataSet):
 
     model.compile(optimizer=optimizer, loss=tf.keras.losses.mean_squared_error, metrics=['accuracy'])
 
-    model.fit(trainingFeatures, trainingLabels, validation_split=0.25, epochs=10)
+    model.fit(trainingX, trainingY, validation_split=0.33, epochs=10)
 
     print("--------------------------")
-    model.evaluate(devsetFeatures, devsetLabels)
+    # model.evaluate(devsetFeatures, devsetLabels)
     # model.summary()
     return model
 
 
 # Execution Part
-Dataset = prepareDataSet()
-startML(Dataset)
+trainingDataset = prepareDataSet(pd.read_csv("dataset/train.csv"))
+
+print(trainingDataset.shape)
+
+modell = CreateModel(trainingDataset)
+
+
+result = pd.concat([pd.read_csv("dataset/test.csv"),pd.read_csv("dataset/gender_submission.csv")['Survived']], axis=1)
+
+print(result.shape)
+
+testDataSet = prepareDataSet(result)
+
+attributes = testDataSet.columns.tolist()
+attributes.remove('Survived')
+trainingX = testDataSet[attributes]
+trainingY = testDataSet['Survived']
+
+scalar = StandardScaler()
+scalar.fit(trainingX)
+trainingX = scalar.transform(trainingX)
+print("-------------=============---------------")
+modell.evaluate(trainingX,trainingY)
