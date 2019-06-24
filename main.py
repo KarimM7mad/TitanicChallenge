@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 
 np.set_printoptions(linewidth=3000)
@@ -50,27 +49,24 @@ def prepareDataSet(dataSet):
     dataSet.at[dataSet["familySize"] == 0, "familySize"] = 1
     dataSet["pricePerPerson"] = dataSet["Fare"] / dataSet["familySize"]
 
-    print(dataSet.columns)
-
-    return dataSet
-
-
-def CreateModel(DataSet):
     # Get The Features Columns
-    attributes = DataSet.columns.tolist()
+    attributes = dataSet.columns.tolist()
     attributes.remove('Survived')
-    trainingX = DataSet[attributes]
-    trainingY = DataSet['Survived']
-
+    X = dataSet[attributes]
+    y = dataSet['Survived']
+    # Data Normalization
     scalar = StandardScaler()
-    scalar.fit(trainingX)
-    trainingX = scalar.transform(trainingX)
+    scalar.fit(X)
+    X = scalar.transform(X)
+    return (X, y)
 
+
+def CreateModel(trainingX, trainingY):
     # Split Training and Testing Dataset for Machine Learning Part
     # trainingFeatures, devsetFeatures, trainingLabels, devsetLabels = train_test_split(trainingX, trainingY, test_size=0.08, random_state=42)
 
     model = tf.keras.Sequential([
-        tf.keras.layers.Dense(units=24, input_shape=(len(attributes),), activation=tf.nn.sigmoid),
+        tf.keras.layers.Dense(units=24, input_shape=(trainingX.shape[1],), activation=tf.nn.sigmoid),
         tf.keras.layers.Dense(units=12, activation=tf.nn.tanh),
         tf.keras.layers.Dense(units=1, activation=tf.nn.sigmoid)
     ])
@@ -82,32 +78,18 @@ def CreateModel(DataSet):
     model.fit(trainingX, trainingY, validation_split=0.33, epochs=10)
 
     print("--------------------------")
-    # model.evaluate(devsetFeatures, devsetLabels)
-    # model.summary()
     return model
 
 
 # Execution Part
+# Training with CV
 trainingDataset = prepareDataSet(pd.read_csv("dataset/train.csv"))
+model = CreateModel(trainingDataset[0], trainingDataset[1])
+# Testing
+testDataset = pd.concat([pd.read_csv("dataset/test.csv"), pd.read_csv("dataset/gender_submission.csv")['Survived']], axis=1)
+print(testDataset.shape)
 
-print(trainingDataset.shape)
+testDataset = prepareDataSet(testDataset)
 
-modell = CreateModel(trainingDataset)
-
-
-result = pd.concat([pd.read_csv("dataset/test.csv"),pd.read_csv("dataset/gender_submission.csv")['Survived']], axis=1)
-
-print(result.shape)
-
-testDataSet = prepareDataSet(result)
-
-attributes = testDataSet.columns.tolist()
-attributes.remove('Survived')
-trainingX = testDataSet[attributes]
-trainingY = testDataSet['Survived']
-
-scalar = StandardScaler()
-scalar.fit(trainingX)
-trainingX = scalar.transform(trainingX)
 print("-------------=============---------------")
-modell.evaluate(trainingX,trainingY)
+model.evaluate(testDataset[0], testDataset[1])
