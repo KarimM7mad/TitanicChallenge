@@ -27,7 +27,7 @@ def checkTitle(x):
     return x
 
 
-def prepareDataSet(dataSet):
+def prepareTrainingSet(dataSet):
     # 0 : female, 1 : male
     dataSet.at[dataSet["Sex"] == "male", "Sex"] = 1
     dataSet.at[dataSet["Sex"] == "female", "Sex"] = 0
@@ -61,35 +61,63 @@ def prepareDataSet(dataSet):
     return (X, y)
 
 
-def CreateModel(trainingX, trainingY):
-    # Split Training and Testing Dataset for Machine Learning Part
-    # trainingFeatures, devsetFeatures, trainingLabels, devsetLabels = train_test_split(trainingX, trainingY, test_size=0.08, random_state=42)
+def prepareTestSet(dataSet):
+    # 0 : female, 1 : male
+    dataSet.at[dataSet["Sex"] == "male", "Sex"] = 1
+    dataSet.at[dataSet["Sex"] == "female", "Sex"] = 0
+    # 1 : S, 2 : C, 3 : Q
+    dataSet.at[dataSet["Embarked"] == 'S', 'Embarked'] = 1
+    dataSet.at[dataSet["Embarked"] == 'C', 'Embarked'] = 2
+    dataSet.at[dataSet["Embarked"] == 'Q', 'Embarked'] = 3
+    # 1 : mr, 2:mrs, 3:miss
+    dataSet["Name"] = dataSet.apply(checkTitle, axis=1)
+    dataSet.drop(columns=["Cabin", "Ticket"], inplace=True)
 
+    dataSet["Age"].fillna(dataSet["Age"].mean(), inplace=True)
+    dataSet["Fare"].fillna(dataSet["Fare"].mean(), inplace=True)
+
+    dataSet["covAgeANDPclass"] = dataSet["Age"] * dataSet["Pclass"]
+    dataSet["familySize"] = dataSet["SibSp"] + dataSet["Parch"]
+
+    dataSet.at[dataSet["familySize"] == 0, "familySize"] = 1
+    dataSet["pricePerPerson"] = dataSet["Fare"] / dataSet["familySize"]
+
+    # Get The Features Columns
+    attributes = dataSet.columns.tolist()
+    attributes.remove('PassengerId')
+
+    X = dataSet[attributes]
+    passengerIds = dataSet['PassengerId']
+    # Data Normalization
+    scalar = StandardScaler()
+    scalar.fit(X)
+    X = scalar.transform(X)
+    return X, passengerIds
+
+
+def CreateModel(trainingX, trainingY):
     model = tf.keras.Sequential([
         tf.keras.layers.Dense(units=24, input_shape=(trainingX.shape[1],), activation=tf.nn.sigmoid),
         tf.keras.layers.Dense(units=12, activation=tf.nn.tanh),
         tf.keras.layers.Dense(units=1, activation=tf.nn.sigmoid)
     ])
-
     optimizer = tf.keras.optimizers.Adam(lr=0.006)
-
     model.compile(optimizer=optimizer, loss=tf.keras.losses.mean_squared_error, metrics=['accuracy'])
-
     model.fit(trainingX, trainingY, validation_split=0.33, epochs=10)
-
-    print("--------------------------")
     return model
 
 
-# Execution Part
-# Training with CV
-trainingDataset = prepareDataSet(pd.read_csv("dataset/train.csv"))
+# Training with Cross Validation
+trainingDataset = prepareTrainingSet(pd.read_csv("dataset/train.csv"))
 model = CreateModel(trainingDataset[0], trainingDataset[1])
+
 # Testing
-testDataset = pd.concat([pd.read_csv("dataset/test.csv"), pd.read_csv("dataset/gender_submission.csv")['Survived']], axis=1)
-print(testDataset.shape)
+testDataset = pd.read_csv("dataset/test.csv")
+testDataset, passengerIds = prepareTestSet(testDataset)
+predictions = model.predict_classes(testDataset)
 
-testDataset = prepareDataSet(testDataset)
-
-print("-------------=============---------------")
-model.evaluate(testDataset[0], testDataset[1])
+# preparing submission data
+submissionFrame = pd.DataFrame({
+    'PassengerId': passengerIds.tolist(),
+    'Survived': predictions.flatten('C')
+}).to_csv("sub.csv", index=False)
