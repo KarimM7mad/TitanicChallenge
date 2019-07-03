@@ -39,7 +39,9 @@ def prepareTrainingSet(dataSet):
     dataSet["Name"] = dataSet.apply(checkTitle, axis=1)
     dataSet.drop(columns=["Cabin", "Ticket", "PassengerId"], inplace=True)
 
-    dataSet = dataSet.drop(dataSet[dataSet.Fare == 0].index)
+    # dataSet = dataSet.drop(dataSet[dataSet.Fare == 0].index)
+    dataSet["Fare"].fillna(dataSet["Fare"].mean(), inplace=True)
+    dataSet["Age"].fillna(dataSet["Age"].mean(), inplace=True)
 
     dataSet.dropna(axis=0, inplace=True)
 
@@ -103,7 +105,8 @@ def CreateModel(trainingX, trainingY):
     ])
     optimizer = tf.keras.optimizers.Adam(lr=0.006)
     model.compile(optimizer=optimizer, loss=tf.keras.losses.mean_squared_error, metrics=['accuracy'])
-    model.fit(trainingX, trainingY, validation_split=0.33, epochs=10)
+    model.fit(trainingX, trainingY, validation_split=0.15, epochs=10)
+    # model.fit(trainingX, trainingY, epochs=10)
     return model
 
 
@@ -120,4 +123,4 @@ predictions = model.predict_classes(testDataset)
 submissionFrame = pd.DataFrame({
     'PassengerId': passengerIds.tolist(),
     'Survived': predictions.flatten('C')
-}).to_csv("sub.csv", index=False)
+}).to_csv("sub2.csv", index=False)
